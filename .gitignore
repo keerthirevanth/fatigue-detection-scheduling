@@ -11,6 +11,10 @@ data/
 outputs/
 *.pkl
 
+# Local wheel cache + stray torch-dep dir (torch lives in C:\pt outside the repo)
+pt_whl/
+pt/
+
 # Keep the outputs dir but not its contents
 !outputs/.gitkeep
 

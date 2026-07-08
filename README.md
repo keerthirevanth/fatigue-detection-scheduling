@@ -33,6 +33,22 @@ hours; the moment a check-in reports fatigue they stop and the scheduler re-solv
 on who's still available. (An earlier *predicted* fatigue-state model was dropped
 in favour of frequent real measurement.)
 
+## Transfer-learning branch (`transfer-learning`)
+
+An ablation comparing the 80 hand-crafted acoustic features against **wav2vec 2.0**
+self-supervised embeddings (768-dim, mean-pooled) and the two combined — under the
+**same** enrollment-baseline + speaker-grouped CV, so only the representation
+changes. Rationale: with ~1k samples over 24 speakers, training a deep net from
+scratch overfits; transfer learning reuses a representation pre-trained on ~960h of
+speech and fits only a light head. The delta-baseline trick still applies (subtract
+each speaker's *embedding* baseline).
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements-transfer.txt
+python scripts/run_transfer_learning.py --data_dir data/RAVDESS
+```
+
 ## Datasets
 
 | Dataset | Role | Labels |

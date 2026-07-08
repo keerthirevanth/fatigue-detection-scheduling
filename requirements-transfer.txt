@@ -1,0 +1,6 @@
+# Extra deps for the transfer-learning branch (wav2vec2 embeddings).
+# CPU torch is fine — embeddings are extracted once and cached.
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements-transfer.txt
+torch
+transformers
