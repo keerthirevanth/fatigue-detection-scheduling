@@ -26,6 +26,18 @@ def test_embedding_names_match_dim():
     assert embeddings.MEAN_FEATURE_NAMES[0] == "w2vmean_0"
 
 
+def test_backbone_dims_and_names():
+    # each backbone declares hidden dim; features = 3 pools × hidden dim
+    for bb, (_, _, tag, hdim) in embeddings.BACKBONES.items():
+        names = embeddings.feature_names(bb)
+        assert embeddings.emb_dim(bb) == 3 * hdim == len(names)
+        assert names[0] == f"{tag}mean_0"
+        assert len(set(names)) == len(names)                 # unique
+    # sanity on the specific sizes we compare in the writeup
+    assert embeddings.emb_dim("wav2vec2") == embeddings.emb_dim("hubert") == 2304
+    assert embeddings.emb_dim("whisper") == 1536
+
+
 def test_module_imports_without_torch():
     # embeddings.py must import even on a machine without torch/transformers
     # (they're imported lazily inside the extraction functions).

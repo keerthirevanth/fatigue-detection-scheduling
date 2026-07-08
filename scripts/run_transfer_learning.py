@@ -44,7 +44,8 @@ from src.fatigue import (load_ravdess, extract_features, compute_baselines,
                          build_delta_dataset, cross_validate_models, select_best)
 from src.fatigue.model import get_model_specs, _pipe, FATIGUED
 from src.fatigue.config import FEATURE_NAMES, FEATURE_PREFIX, RANDOM_STATE
-from src.fatigue.embeddings import embedding_row, EMB_FEATURE_NAMES, MODEL_NAME, HIDDEN_DIM
+from src.fatigue import embeddings as emb_mod
+from src.fatigue.embeddings import embedding_row, feature_names, BACKBONES
 
 
 def load_or_build_handcrafted(meta, cache):
@@ -69,16 +70,17 @@ def load_or_build_handcrafted(meta, cache):
     return df
 
 
-def load_or_build_embeddings(meta, cache):
+def load_or_build_embeddings(meta, cache, backbone):
     if Path(cache).exists():
-        print(f"  embeddings: loading cache {cache}")
+        print(f"  embeddings[{backbone}]: loading cache {cache}")
         return pd.read_csv(cache)
-    print(f"  embeddings: extracting with {MODEL_NAME} (first run downloads ~360MB)...")
+    hf_id = BACKBONES[backbone][0]
+    print(f"  embeddings[{backbone}]: extracting with {hf_id} (first run downloads the model)...")
     rows = []
     for i, r in meta.reset_index(drop=True).iterrows():
         if i % 50 == 0:
             print(f"    {i}/{len(meta)}")
-        row = embedding_row(r)
+        row = embedding_row(r, backbone=backbone)
         if row is not None:
             rows.append(row)
     df = pd.DataFrame(rows)
@@ -143,42 +145,51 @@ def evaluate(full, feat_cols, name, n_splits, tune):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data_dir", default="data/RAVDESS")
+    ap.add_argument("--backbone", default="wav2vec2", choices=list(BACKBONES),
+                    help="self-supervised / pretrained encoder to compare against")
     ap.add_argument("--handcrafted_cache", default="outputs/features_cache.csv")
-    ap.add_argument("--embeddings_cache", default="outputs/embeddings_cache.csv")
+    ap.add_argument("--embeddings_cache", default=None,
+                    help="default: outputs/embeddings_<backbone>.csv")
     ap.add_argument("--out_dir", default="outputs")
     ap.add_argument("--n_splits", type=int, default=5)
     ap.add_argument("--tune", action="store_true",
                     help="also hyper-parameter tune the best model per representation")
     args = ap.parse_args()
 
-    print("[1] Loading metadata...")
+    bb = args.backbone
+    tag, hdim = BACKBONES[bb][2], BACKBONES[bb][3]
+    emb_cache = args.embeddings_cache or f"{args.out_dir}/embeddings_{bb}.csv"
+
+    print(f"[1] Loading metadata... (backbone = {bb})")
     meta = load_ravdess(args.data_dir)
     if len(meta) == 0:
         raise SystemExit(f"No audio in {args.data_dir}.")
     print(f"  {len(meta)} clips / {meta['speaker_id'].nunique()} speakers")
 
-    print("\n[2] Building both feature representations...")
+    print("\n[2] Building feature representations...")
     hand = load_or_build_handcrafted(meta, args.handcrafted_cache)
-    emb = load_or_build_embeddings(meta, args.embeddings_cache)
+    emb = load_or_build_embeddings(meta, emb_cache, bb)
 
+    # hand-crafted cols are the f_ cols that are NOT any embedding tag
+    all_tags = [BACKBONES[b][2] for b in BACKBONES]
     hand_cols = [c for c in hand.columns
-                 if c.startswith(FEATURE_PREFIX) and "w2v" not in c]
-    emb_cols_all = [f"{FEATURE_PREFIX}{n}" for n in EMB_FEATURE_NAMES]
+                 if c.startswith(FEATURE_PREFIX) and not any(t in c for t in all_tags)]
+    emb_cols_all = [f"{FEATURE_PREFIX}{n}" for n in feature_names(bb)]
     merged = hand.merge(emb[["path"] + emb_cols_all], on="path", how="inner") \
                  .reset_index(drop=True)
     print(f"  aligned clips present in both: {len(merged)}")
 
-    # column subsets for each pooling view
-    mean_cols = [f"{FEATURE_PREFIX}w2vmean_{i}" for i in range(HIDDEN_DIM)]
-    std_cols = [f"{FEATURE_PREFIX}w2vstd_{i}" for i in range(HIDDEN_DIM)]
-    max_cols = [f"{FEATURE_PREFIX}w2vmax_{i}" for i in range(HIDDEN_DIM)]
+    # column subsets for each pooling view of this backbone
+    mean_cols = [f"{FEATURE_PREFIX}{tag}mean_{i}" for i in range(hdim)]
+    std_cols = [f"{FEATURE_PREFIX}{tag}std_{i}" for i in range(hdim)]
+    max_cols = [f"{FEATURE_PREFIX}{tag}max_{i}" for i in range(hdim)]
 
     representations = [
         ("handcrafted_80", hand_cols),
-        ("w2v_mean", mean_cols),
-        ("w2v_meanstd", mean_cols + std_cols),
-        ("w2v_meanstdmax", mean_cols + std_cols + max_cols),
-        ("combined", hand_cols + mean_cols),
+        (f"{bb}_mean", mean_cols),
+        (f"{bb}_meanstd", mean_cols + std_cols),
+        (f"{bb}_meanstdmax", mean_cols + std_cols + max_cols),
+        (f"combined_{bb}", hand_cols + mean_cols),
     ]
 
     print(f"\n[3] Evaluating {len(representations)} representations "
@@ -206,9 +217,10 @@ def main():
 
     out = Path(args.out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    with open(out / "transfer_comparison.json", "w") as f:
+    outfile = out / f"transfer_comparison_{bb}.json"
+    with open(outfile, "w") as f:
         json.dump(runs, f, indent=2)
-    print(f"\n✓ saved {out}/transfer_comparison.json")
+    print(f"\n✓ saved {outfile}")
 
 
 if __name__ == "__main__":
