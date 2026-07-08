@@ -1,0 +1,26 @@
+# --- core ML / DS ---
+numpy
+pandas
+scikit-learn>=1.1        # StratifiedGroupKFold
+scipy
+
+# --- audio ---
+librosa
+soundfile
+
+# --- models ---
+xgboost                  # optional; pipeline falls back gracefully if missing
+
+# --- persistence / viz ---
+joblib
+matplotlib
+seaborn
+
+# --- testing ---
+pytest
+
+# --- Phase 3 (OR scheduler) ---
+ortools
+
+# --- Phase 4 (agent) ---
+anthropic

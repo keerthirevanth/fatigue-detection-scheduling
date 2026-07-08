@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Data & artifacts (regenerated / downloaded)
+data/
+outputs/
+*.pkl
+
+# Keep the outputs dir but not its contents
+!outputs/.gitkeep
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
