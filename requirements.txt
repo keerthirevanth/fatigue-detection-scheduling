@@ -10,6 +10,7 @@ soundfile
 
 # --- models ---
 xgboost                  # optional; pipeline falls back gracefully if missing
+lightgbm                 # optional; added to the model comparison set
 
 # --- persistence / viz ---
 joblib

@@ -11,10 +11,12 @@ time → speaker delta baseline. Whisper pads to 30 s, so only the valid
 
 **Protocol (identical for every row):** RAVDESS proxy labels, 1440 clips / 24
 speakers, enrollment-baseline delta features, speaker-independent
-`StratifiedGroupKFold` (5-fold), scaler inside the CV pipeline, best model per
-representation additionally tuned via group-aware multi-metric
-`RandomizedSearchCV`. Only the representation changes across rows — same clips,
-folds, enrollment split — so differences are attributable to the representation.
+`StratifiedGroupKFold` (5-fold), scaler inside the CV pipeline. **Six classifiers**
+(RandomForest, SVM, MLP, LogisticRegression, XGBoost, LightGBM) are evaluated on
+every representation, and the best per representation is additionally tuned via
+group-aware multi-metric `RandomizedSearchCV`. Only the representation changes
+across rows — same clips, folds, enrollment split — so differences are
+attributable to the representation.
 
 **Harness sanity check:** the `handcrafted_80` row reproduces the standalone
 Phase-1 numbers exactly (XGBoost F1 0.651±0.032, recall 0.721; SVM F1 0.693),
@@ -56,9 +58,28 @@ Reproduce (torch on this machine lives in `C:\pt` — see note at bottom):
    highest F1 (combined 0.800), but `whisper_meanstd` dips to 0.768 — its
    ASR-oriented features don't gain as cleanly from statistics pooling, and mean
    pooling alone is already near its best.
-4. **Model family still matters.** SVM (RBF) wins almost everywhere on the dense
-   embeddings; tree ensembles lag. Tuning moved winners by ≤0.02 F1 — the lift is
-   the *representation*, not the hyper-parameter search.
+4. **Model family still matters — and a linear model is nearly as good.** Six
+   classifiers were run on every representation and backbone (RandomForest, SVM,
+   MLP, LogisticRegression, XGBoost, LightGBM). Average rank across all 15
+   embedding rows (lower = better):
+
+   | model | avg rank |
+   |---|---|
+   | SVM (RBF)          | 1.58 |
+   | LogisticRegression | 1.83 |
+   | MLP                | 2.83 |
+   | LightGBM           | 4.00 |
+   | XGBoost            | 4.75 |
+   | RandomForest       | 6.00 |
+
+   SVM (RBF) wins overall, but **LogisticRegression is a near-tie and actually
+   wins on the wav2vec2 embeddings** — meaning the encoder embeddings are already
+   close to linearly separable in the delta space, so the representation does most
+   of the work and the RBF kernel only adds a small non-linear bump. Among tree
+   models, **LightGBM is the best** but the whole tree family sits ~0.07 F1 below
+   SVM/LogReg — axis-aligned splitting is the wrong inductive bias for dense
+   embeddings, and a better booster doesn't close the gap. Tuning moved winners by
+   ≤0.02 F1 — the lift is the *representation*, not the search.
 5. **Honest caveats:** all results are on the RAVDESS emotion→fatigue *proxy*;
    ±std bands for HuBERT vs Whisper overlap (they are statistically indistinct
    here). The ranking should be re-confirmed on real KSS-labeled data (SLC).

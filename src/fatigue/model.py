@@ -15,6 +15,7 @@ from sklearn.model_selection import StratifiedGroupKFold, RandomizedSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, recall_score, classification_report
 
 from .config import RANDOM_STATE, LABEL_TO_INT
@@ -24,6 +25,12 @@ try:
     HAS_XGB = True
 except ImportError:
     HAS_XGB = False
+
+try:
+    from lightgbm import LGBMClassifier
+    HAS_LGBM = True
+except ImportError:
+    HAS_LGBM = False
 
 FATIGUED = LABEL_TO_INT["fatigued"]
 
@@ -57,6 +64,13 @@ def get_model_specs():
              "clf__alpha": [1e-4, 1e-3, 1e-2],
              "clf__learning_rate_init": [1e-3, 5e-4]},
         ),
+        # Linear baseline — a strong, cheap reference on dense embeddings; tells us
+        # whether the RBF kernel is actually buying anything over a linear model.
+        "LogReg": (
+            LogisticRegression(class_weight="balanced", max_iter=2000,
+                               random_state=RANDOM_STATE),
+            {"clf__C": [0.01, 0.1, 0.3, 1.0, 3.0, 10.0]},
+        ),
     }
     if HAS_XGB:
         specs["XGBoost"] = (
@@ -66,6 +80,17 @@ def get_model_specs():
             {"clf__n_estimators": [300, 400, 600],
              "clf__max_depth": [3, 4, 6, 8],
              "clf__learning_rate": [0.03, 0.05, 0.1],
+             "clf__subsample": [0.8, 1.0],
+             "clf__colsample_bytree": [0.8, 1.0]},
+        )
+    if HAS_LGBM:
+        specs["LightGBM"] = (
+            LGBMClassifier(class_weight="balanced", n_jobs=-1, verbosity=-1,
+                           random_state=RANDOM_STATE),
+            {"clf__n_estimators": [300, 500, 800],
+             "clf__num_leaves": [15, 31, 63],
+             "clf__learning_rate": [0.03, 0.05, 0.1],
+             "clf__min_child_samples": [5, 10, 20],
              "clf__subsample": [0.8, 1.0],
              "clf__colsample_bytree": [0.8, 1.0]},
         )
