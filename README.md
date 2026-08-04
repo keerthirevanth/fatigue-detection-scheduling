@@ -33,6 +33,20 @@ hours; the moment a check-in reports fatigue they stop and the scheduler re-solv
 on who's still available. (An earlier *predicted* fatigue-state model was dropped
 in favour of frequent real measurement.)
 
+## Industry-impact simulation (`industry-impact-simulation` branch)
+
+Does fatigue-aware scheduling actually change outcomes vs. how shifts are
+typically staffed? A synthetic multi-week simulation runs a **traditional
+fixed-rotation baseline** (flat overtime cap, no fatigue awareness) against
+this project's **fatigue-aware Gurobi scheduler**, on the same randomized
+scenario, across 10 seeds. Result: **86% fewer unsafe (fatigued) overtime
+assignments**, ~68% less overtime, coverage unchanged, fairness roughly doubled.
+Full writeup + honest caveats: [docs/industry_impact_simulation.md](docs/industry_impact_simulation.md).
+
+```bash
+python scripts/run_simulation.py --n_workers 18 --n_days 21 --seeds 10
+```
+
 ## Transfer-learning branch (`transfer-learning`)
 
 An ablation comparing the 80 hand-crafted acoustic features against **wav2vec 2.0**
